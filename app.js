@@ -78,12 +78,12 @@ function createFormattedDocx(text) {
 
   const children = [];
   const dom = htmlparser2.parseDocument(text);
-  function walk(nodes, parentParagraph) {
+  function walk(nodes, parentParagraph, listContext = []) {
     for (const node of nodes) {
       if (node.type === 'tag') {
         if (node.name === 'p') {
           const paraRuns = [];
-          walk(node.children || [], paraRuns);
+          walk(node.children || [], paraRuns, listContext);
           if (paraRuns.length > 0) {
             children.push(
               new Paragraph({
@@ -120,7 +120,7 @@ function createFormattedDocx(text) {
               for (const td of tr.children) {
                 if (td.type === 'tag' && (td.name === 'td' || td.name === 'th')) {
                   const cellRuns = [];
-                  walk(td.children || [], cellRuns);
+                  walk(td.children || [], cellRuns, listContext);
                   cells.push(
                     new TableCell({
                       children: [new Paragraph({children: cellRuns})],
@@ -142,8 +142,34 @@ function createFormattedDocx(text) {
               })
             );
           }
+        } else if (node.name === 'ol' || node.name === 'ul') {
+          // Ordered or unordered list
+          walk(node.children || [], parentParagraph, [...listContext, node.name]);
+        } else if (node.name === 'li') {
+          // List item
+          const liRuns = [];
+          walk(node.children || [], liRuns, listContext);
+          // Determine bullet or number
+          let bullet = '';
+          let numbering = undefined;
+          let indent = listContext.length > 0 ? listContext.length - 1 : 0;
+          if (listContext[listContext.length - 1] === 'ol') {
+            numbering = {reference: 'numbered-list', level: indent};
+          } else {
+            bullet = '\u2022';
+          }
+          if (liRuns.length > 0) {
+            children.push(
+              new Paragraph({
+                children: numbering ? liRuns : [new TextRun({text: bullet + ' ', font: 'Calibri', size: 19}), ...liRuns],
+                numbering: numbering,
+                indent: {left: 720 * indent},
+                spacing: {before: 0, after: 100, line: 276},
+              })
+            );
+          }
         } else {
-          walk(node.children || [], parentParagraph);
+          walk(node.children || [], parentParagraph, listContext);
         }
       } else if (node.type === 'text') {
         const trimmed = node.data;
@@ -163,6 +189,48 @@ function createFormattedDocx(text) {
   walk(dom.children);
 
   const doc = new Document({
+    numbering: {
+      config: [
+        {
+          reference: 'numbered-list',
+          levels: [
+            {
+              level: 0,
+              format: 'decimal',
+              text: '%1.',
+              alignment: 'left',
+              style: {
+                paragraph: {
+                  indent: {left: 0, hanging: 360},
+                },
+              },
+            },
+            {
+              level: 1,
+              format: 'decimal',
+              text: '%2.',
+              alignment: 'left',
+              style: {
+                paragraph: {
+                  indent: {left: 720, hanging: 360},
+                },
+              },
+            },
+            {
+              level: 2,
+              format: 'decimal',
+              text: '%3.',
+              alignment: 'left',
+              style: {
+                paragraph: {
+                  indent: {left: 1440, hanging: 360},
+                },
+              },
+            },
+          ],
+        },
+      ],
+    },
     sections: [
       {
         properties: {
@@ -196,7 +264,7 @@ app.post('/generate-docx', async (req, res) => {
     if (download) {
       res.setHeader('Content-Disposition', 'attachment; filename="output.docx"');
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-      return res.send(buffer);
+      return res.end(buffer);
     }
 
     const base64 = buffer.toString('base64');
