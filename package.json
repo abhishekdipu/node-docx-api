@@ -1,0 +1,26 @@
+{
+  "name": "word-converter",
+  "version": "1.0.0",
+  "description": "Node.js API to convert HTML-like text to DOCX",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "docx",
+    "html-to-docx",
+    "render",
+    "express"
+  ],
+  "author": "abhishekdipu.in",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "docx": "^9.5.1",
+    "express": "^5.1.0",
+    "htmlparser2": "^10.0.0"
+  }
+}
